@@ -10,37 +10,35 @@ on:
       - v*
 
 jobs:
-  release:
-    name: Release - ${{ matrix.platform.os-name }}
+  build:
+    runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        platform:
-          - os-name: Linux-x86_64
-            runs-on: ubuntu-20.04
-            target: x86_64-unknown-linux-musl
-
-    runs-on: ${{ matrix.platform.runs-on }}
+        target:
+          - x86_64-unknown-linux-musl
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
-          toolchain: stable
-          target: ${{ matrix.platform.target }}
+          targets: ${{ matrix.target }}
 
-      - name: Build binary
-        uses: houseabsolute/actions-rust-cross@v0
-        with:
-          command: build
-          target: ${{ matrix.platform.target }}
-          args: "--locked --release"
-          strip: true
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
 
-      - name: Publish artifacts and release
-        uses: houseabsolute/actions-rust-release@v0
+      - name: Build with cross
+        run: cross build --release --locked --target ${{ matrix.target }}
+
+      - name: Rename artifact
+        run: |
+          mv target/${{ matrix.target }}/release/ksubst target/${{ matrix.target }}/release/ksubst-${{ github.ref_name }}-${{ matrix.target }}
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
         with:
-          executable-name: ksubst
-          target: ${{ matrix.platform.target }}
+          files: target/${{ matrix.target }}/release/ksubst-${{ github.ref_name }}-${{ matrix.target }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
